@@ -1,0 +1,6 @@
+{
+  "name": "SilentVenge",
+  "description": "Lightweight autonomous Android Mini Agent for Termux & Kali execution, autonomous task pipelines, tool execution & model routing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

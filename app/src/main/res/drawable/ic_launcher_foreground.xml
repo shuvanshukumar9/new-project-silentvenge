@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer Terminal Shield/Container Frame -->
+    <path
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="2"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round"
+        android:fillColor="#1A00E5FF"
+        android:pathData="M28,34 L80,34 C82.2,34 84,35.8 84,38 L84,72 C84,74.2 82.2,76 80,76 L28,76 C25.8,76 24,74.2 24,72 L24,38 C24,35.8 25.8,34 28,34 Z" />
+    <!-- Top terminal window dots -->
+    <path
+        android:fillColor="#FF5252"
+        android:pathData="M31,39m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0" />
+    <path
+        android:fillColor="#FFD740"
+        android:pathData="M38,39m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0" />
+    <path
+        android:fillColor="#00E676"
+        android:pathData="M45,39m-2,0a2,2 0 1,0 4,0a2,2 0 1,0 -4,0" />
+    <!-- Terminal Command Prompt chevron > -->
+    <path
+        android:strokeColor="#00E676"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M32,49 L41,55 L32,61" />
+    <!-- Cursor line _ -->
+    <path
+        android:strokeColor="#00E676"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:pathData="M46,61 L54,61" />
+    <!-- Voice Sound Waveform Graphic on the right -->
+    <path
+        android:strokeColor="#00E5FF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M61,55 L61,57 M66,51 L66,61 M71,46 L71,66 M76,51 L76,61 M80,55 L80,57" />
+    <!-- Bottom Glow Indicator -->
+    <path
+        android:fillColor="#00E676"
+        android:pathData="M54,73m-1.5,0a1.5,1.5 0 1,0 3,0a1.5,1.5 0 1,0 -3,0" />
+</vector>
