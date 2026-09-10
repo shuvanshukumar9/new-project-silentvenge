@@ -7,12 +7,15 @@ import androidx.lifecycle.viewModelScope
 import com.example.ai.CodexResult
 import com.example.ai.GeminiCodexService
 import com.example.data.AppDatabase
+import com.example.data.CommandResultEntity
 import com.example.data.SavedScript
 import com.example.data.ScriptRepository
 import com.example.executor.AutomationExecutor
+import com.example.executor.CommandResult
 import com.example.executor.ExecutionState
 import com.example.executor.LogType
 import com.example.executor.TerminalLog
+import com.example.executor.TermuxCommandExecutionService
 import com.example.voice.VoiceAutomationManager
 import com.example.voice.VoiceLanguage
 import com.example.voice.VoiceState
@@ -34,6 +37,7 @@ import com.example.agent.model.*
 import com.example.agent.router.ModelRouter
 import com.example.agent.security.SecurityPolicyEngine
 import com.example.agent.tools.DeterministicToolExecutor
+import com.example.ai.AIOrchestrator
 import com.example.executor.ActiveShellProcess
 import java.io.File
 
@@ -49,15 +53,23 @@ enum class CodexTab(val title: String, val icon: String) {
 
 class CodexViewModel(application: Application) : AndroidViewModel(application) {
 
+    // Internal Services & Database (Strictly internal to AIOrchestrator and CodexViewModel)
     private val database = AppDatabase.getDatabase(application)
     private val repository = ScriptRepository(database.scriptDao())
     private val codexService = GeminiCodexService()
     private val jarvisBrain = JarvisBrainService(application)
-    val executor = AutomationExecutor()
+    private val executor = AutomationExecutor()
     val voiceManager = VoiceAutomationManager(application)
 
-    // SilentVenge Core Architecture
+    // SilentVenge Core Architecture & Internal Services
     val termuxBridge = TermuxBridge(application)
+    internal val termuxExecutionService = TermuxCommandExecutionService.getInstance(application)
+    internal val aiOrchestrator = AIOrchestrator(
+        jarvisBrain = jarvisBrain,
+        termuxExecutionService = termuxExecutionService,
+        executor = executor,
+        termuxBridge = termuxBridge
+    )
     val toolExecutor = DeterministicToolExecutor(application, termuxBridge)
     val securityEngine = SecurityPolicyEngine()
     val modelRouter = ModelRouter(codexService)
@@ -82,6 +94,12 @@ class CodexViewModel(application: Application) : AndroidViewModel(application) {
 
     val serverDaemons: StateFlow<List<ServerDaemon>> = database.agentTaskDao().getAllDaemons()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val commandHistory: StateFlow<List<CommandResultEntity>> = termuxExecutionService.commandHistory
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _isExecutingCommand = MutableStateFlow(false)
+    val isExecutingCommand: StateFlow<Boolean> = _isExecutingCommand.asStateFlow()
 
     private val _workspaceFiles = MutableStateFlow<List<FileEntry>>(emptyList())
     val workspaceFiles: StateFlow<List<FileEntry>> = _workspaceFiles.asStateFlow()
@@ -170,6 +188,9 @@ class CodexViewModel(application: Application) : AndroidViewModel(application) {
     private val _showSettingsDialog = MutableStateFlow(false)
     val showSettingsDialog: StateFlow<Boolean> = _showSettingsDialog.asStateFlow()
 
+    private val _showDevConsole = MutableStateFlow(false)
+    val showDevConsole: StateFlow<Boolean> = _showDevConsole.asStateFlow()
+
     private val _snackbarMessage = MutableStateFlow<String?>(null)
     val snackbarMessage: StateFlow<String?> = _snackbarMessage.asStateFlow()
 
@@ -182,8 +203,7 @@ class CodexViewModel(application: Application) : AndroidViewModel(application) {
             voiceManager.voiceState.collect { state ->
                 if (state is VoiceState.Recognized) {
                     _promptInput.value = state.text
-                    // Auto-trigger codex generation and execution if enabled
-                    processVoicePrompt(state.text)
+                    sendJarvisMessage(state.text)
                 }
             }
         }
@@ -243,6 +263,25 @@ class CodexViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setShowSettingsDialog(show: Boolean) {
         _showSettingsDialog.value = show
+    }
+
+    fun setShowDevConsole(show: Boolean) {
+        _showDevConsole.value = show
+    }
+
+    fun clearChatMessages() {
+        _jarvisMessages.value = listOf(
+            JarvisChatMessage(
+                senderType = JarvisAgentType.JARVIS_CORE,
+                message = "Hello! I am your AI assistant. How can I help you today? You can ask me questions, have me write scripts, or execute tasks in the background.",
+                isUser = false
+            )
+        )
+    }
+
+    fun clearTerminal() {
+        executor.clearLogs()
+        termuxBridge.clearLogs()
     }
 
     fun clearSnackbar() {
@@ -424,28 +463,75 @@ class CodexViewModel(application: Application) : AndroidViewModel(application) {
 
     fun sendJarvisMessage(userText: String) {
         if (userText.isBlank()) return
+        val trimmed = userText.trim()
         val currentAgent = _selectedJarvisAgent.value
         val userMsg = JarvisChatMessage(
             senderType = currentAgent,
-            message = userText,
+            message = trimmed,
             isUser = true
         )
         _jarvisMessages.value = _jarvisMessages.value + userMsg
 
         viewModelScope.launch {
             _isJarvisThinking.value = true
-            val responseMsg = jarvisBrain.chatWithJarvis(
-                userMessage = userText,
-                agent = currentAgent,
-                history = _jarvisMessages.value,
-                customApiKey = _customApiKey.value.takeIf { it.isNotBlank() }
-            )
-            _isJarvisThinking.value = false
-            _jarvisMessages.value = _jarvisMessages.value + responseMsg
+            try {
+                val orchestrationResult = aiOrchestrator.processChatInput(
+                    userInput = trimmed,
+                    selectedAgent = currentAgent,
+                    conversationHistory = _jarvisMessages.value,
+                    customApiKey = _customApiKey.value.takeIf { it.isNotBlank() },
+                    autoExecute = _isAutoExecuteOnVoice.value,
+                    onCommandExecuting = { executingMsg ->
+                        _jarvisMessages.value = _jarvisMessages.value + executingMsg
+                    }
+                )
 
-            if (_isTtsEnabled.value) {
-                voiceManager.speak(responseMsg.message.take(200))
+                // Update or append the resulting response
+                val existingIndex = _jarvisMessages.value.indexOfFirst { it.id == orchestrationResult.chatMessage.id }
+                if (existingIndex >= 0) {
+                    _jarvisMessages.value = _jarvisMessages.value.map { msg ->
+                        if (msg.id == orchestrationResult.chatMessage.id) orchestrationResult.chatMessage else msg
+                    }
+                } else {
+                    _jarvisMessages.value = _jarvisMessages.value + orchestrationResult.chatMessage
+                }
+
+                if (orchestrationResult.requiresAutoExecution && !orchestrationResult.executedCommand.isNullOrBlank()) {
+                    executeTaskCommandInBackground(orchestrationResult.chatMessage.id, orchestrationResult.executedCommand)
+                }
+
+                if (_isTtsEnabled.value) {
+                    voiceManager.speak(orchestrationResult.chatMessage.message.take(200))
+                }
+                refreshWorkspaceFiles()
+            } catch (e: Exception) {
+                _jarvisMessages.value = _jarvisMessages.value + JarvisChatMessage(
+                    senderType = currentAgent,
+                    message = "Error processing request: ${e.localizedMessage ?: "Unknown error"}",
+                    isUser = false,
+                    isError = true
+                )
+            } finally {
+                _isJarvisThinking.value = false
             }
+        }
+    }
+
+    fun executeTaskCommandInBackground(messageId: String, cmd: String) {
+        viewModelScope.launch {
+            _jarvisMessages.value = _jarvisMessages.value.map { msg ->
+                if (msg.id == messageId) msg.copy(isRunning = true, taskStatus = "Executing task...") else msg
+            }
+
+            val result = aiOrchestrator.executeCommandAndFormat(
+                command = cmd,
+                initialMessageId = messageId
+            )
+
+            _jarvisMessages.value = _jarvisMessages.value.map { msg ->
+                if (msg.id == messageId) result.chatMessage else msg
+            }
+            refreshWorkspaceFiles()
         }
     }
 
@@ -580,8 +666,33 @@ class CodexViewModel(application: Application) : AndroidViewModel(application) {
     fun executeTerminalCommand(cmd: String) {
         if (cmd.isBlank()) return
         viewModelScope.launch {
-            termuxBridge.executeLocal(cmd)
-            refreshWorkspaceFiles()
+            _isExecutingCommand.value = true
+            termuxBridge.addLog(LogType.COMMAND, "$ $cmd")
+            executor.addLog(LogType.COMMAND, "$ $cmd")
+            try {
+                termuxExecutionService.executeAndLog(
+                    command = cmd,
+                    saveToDatabase = true,
+                    onStdoutLine = {
+                        termuxBridge.addLog(LogType.STDOUT, it)
+                        executor.addLog(LogType.STDOUT, it)
+                    },
+                    onStderrLine = {
+                        termuxBridge.addLog(LogType.STDERR, it)
+                        executor.addLog(LogType.STDERR, it)
+                    }
+                )
+                refreshWorkspaceFiles()
+            } finally {
+                _isExecutingCommand.value = false
+            }
+        }
+    }
+
+    fun clearCommandHistory() {
+        viewModelScope.launch {
+            termuxExecutionService.clearHistory()
+            showSnackbar("Command history cleared")
         }
     }
 
@@ -592,8 +703,11 @@ class CodexViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun killTerminalProcess() {
+        val killedServiceProcess = termuxExecutionService.killActiveProcess()
         termuxBridge.killCurrentProcess()
-        showSnackbar("Process killed.")
+        executor.killCurrentProcess()
+        _isExecutingCommand.value = false
+        showSnackbar(if (killedServiceProcess) "ProcessBuilder process killed." else "Process killed.")
     }
 
     fun refreshWorkspaceFiles() {

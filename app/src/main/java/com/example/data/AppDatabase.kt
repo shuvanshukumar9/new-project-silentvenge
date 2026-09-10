@@ -13,14 +13,16 @@ import com.example.agent.model.TaskStep
         SavedScript::class,
         AgentTask::class,
         TaskStep::class,
-        ServerDaemon::class
+        ServerDaemon::class,
+        CommandResultEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun scriptDao(): ScriptDao
     abstract fun agentTaskDao(): AgentTaskDao
+    abstract fun commandResultDao(): CommandResultDao
 
     companion object {
         @Volatile

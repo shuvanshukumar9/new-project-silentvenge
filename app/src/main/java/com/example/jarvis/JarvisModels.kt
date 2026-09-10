@@ -15,13 +15,18 @@ enum class JarvisAgentType(
 
 data class JarvisChatMessage(
     val id: String = java.util.UUID.randomUUID().toString(),
-    val senderType: JarvisAgentType,
+    val senderType: JarvisAgentType = JarvisAgentType.JARVIS_CORE,
     val message: String,
     val isUser: Boolean = false,
     val timestamp: Long = System.currentTimeMillis(),
     val codeSnippet: String? = null,
     val codeLanguage: String? = null,
-    val runCommand: String? = null
+    val runCommand: String? = null,
+    val taskStatus: String? = null,
+    val commandOutput: String? = null,
+    val executionDurationMs: Long = 0,
+    val isError: Boolean = false,
+    val isRunning: Boolean = false
 )
 
 data class BugDiagnosis(

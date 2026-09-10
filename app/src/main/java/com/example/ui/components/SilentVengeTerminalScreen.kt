@@ -18,7 +18,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,6 +44,15 @@ fun SilentVengeTerminalScreen(
 ) {
     var cmdInput by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    val clipboardManager = LocalClipboardManager.current
+    var copiedFeedback by remember { mutableStateOf(false) }
+
+    LaunchedEffect(copiedFeedback) {
+        if (copiedFeedback) {
+            kotlinx.coroutines.delay(2000)
+            copiedFeedback = false
+        }
+    }
 
     LaunchedEffect(logs.size) {
         if (logs.isNotEmpty()) {
@@ -172,6 +183,70 @@ fun SilentVengeTerminalScreen(
             colors = CardDefaults.cardColors(containerColor = CyberDark),
             shape = RoundedCornerShape(10.dp)
         ) {
+            // Header bar next to terminal output display with Copy and status
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(CyberSurface)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "CONSOLE OUTPUT",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CyberCyan,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    if (copiedFeedback) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "COPIED!",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = NeonGreen,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+
+                FilledTonalButton(
+                    onClick = {
+                        val text = logs.joinToString("\n") { it.text }
+                        if (text.isNotBlank()) {
+                            clipboardManager.setText(AnnotatedString(text))
+                            copiedFeedback = true
+                        }
+                    },
+                    modifier = Modifier
+                        .height(30.dp)
+                        .testTag("copy_terminal_output_button"),
+                    shape = RoundedCornerShape(6.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = CyberCyan.copy(alpha = 0.15f),
+                        contentColor = CyberCyan
+                    ),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ContentCopy,
+                        contentDescription = "Copy Output",
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Copy",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+
+            HorizontalDivider(color = CyberBorder, thickness = 0.5.dp)
+
             SelectionContainer {
                 LazyColumn(
                     state = listState,
