@@ -40,6 +40,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
@@ -99,6 +100,8 @@ fun ModernAiChatScreen(
     isThinking: Boolean,
     voiceState: VoiceState,
     isTtsEnabled: Boolean,
+    isTermuxInstalled: Boolean = false,
+    isKaliInstalled: Boolean = false,
     onSendMessage: (String) -> Unit,
     onStartVoice: () -> Unit,
     onStopVoice: () -> Unit,
@@ -108,6 +111,7 @@ fun ModernAiChatScreen(
     onToggleTts: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenDevConsole: () -> Unit,
+    onDismissVoiceError: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var inputText by remember { mutableStateOf("") }
@@ -177,19 +181,67 @@ fun ModernAiChatScreen(
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // AI State Dot
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isThinking) TerminalYellow else NeonGreen)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = if (isThinking) "Working" else "Ready",
+                                fontSize = 10.sp,
+                                color = TextSecondary
+                            )
+                        }
+
+                        // Termux Connectivity Dot
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(if (isThinking) TerminalYellow else NeonGreen)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (isThinking) "Working..." else "Ready",
-                            fontSize = 10.sp,
-                            color = TextSecondary
-                        )
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { onOpenDevConsole() }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isTermuxInstalled) NeonGreen else TerminalYellow)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = if (isTermuxInstalled) "Termux" else "Sandbox",
+                                fontSize = 10.sp,
+                                color = if (isTermuxInstalled) NeonGreen else TerminalYellow
+                            )
+                        }
+
+                        // Kali / Root Connectivity Dot
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { onOpenDevConsole() }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isKaliInstalled) CyberCyan else TextMuted)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = if (isKaliInstalled) "Kali" else "Std",
+                                fontSize = 10.sp,
+                                color = if (isKaliInstalled) CyberCyan else TextMuted
+                            )
+                        }
                     }
                 }
             }
@@ -313,6 +365,51 @@ fun ModernAiChatScreen(
                         imageVector = Icons.Default.Stop,
                         contentDescription = "Stop listening",
                         tint = TerminalRed,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+
+        // Voice Error Notice Banner
+        if (voiceState is VoiceState.Error) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(TerminalYellow.copy(alpha = 0.15f))
+                    .border(1.dp, TerminalYellow.copy(alpha = 0.35f))
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(TerminalYellow)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Mic: ${(voiceState as VoiceState.Error).error}",
+                        fontSize = 12.sp,
+                        color = TerminalYellow,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 2
+                    )
+                }
+
+                IconButton(
+                    onClick = onDismissVoiceError,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Dismiss error",
+                        tint = TerminalYellow,
                         modifier = Modifier.size(16.dp)
                     )
                 }

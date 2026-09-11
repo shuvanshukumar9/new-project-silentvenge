@@ -86,6 +86,8 @@ fun MainCodexScreen(
                 isThinking = isThinking,
                 voiceState = voiceState,
                 isTtsEnabled = isTtsEnabled,
+                isTermuxInstalled = viewModel.isTermuxInstalled,
+                isKaliInstalled = viewModel.isKaliInstalled,
                 onSendMessage = { text -> viewModel.sendJarvisMessage(text) },
                 onStartVoice = {
                     val hasAudioPermission = ContextCompat.checkSelfPermission(
@@ -107,7 +109,8 @@ fun MainCodexScreen(
                 onClearChat = { viewModel.clearChatMessages() },
                 onToggleTts = { viewModel.toggleTts() },
                 onOpenSettings = { viewModel.setShowSettingsDialog(true) },
-                onOpenDevConsole = { viewModel.setShowDevConsole(true) }
+                onOpenDevConsole = { viewModel.setShowDevConsole(true) },
+                onDismissVoiceError = { viewModel.resetVoiceState() }
             )
 
             // Settings Dialog (API Key, Language, Target Env)

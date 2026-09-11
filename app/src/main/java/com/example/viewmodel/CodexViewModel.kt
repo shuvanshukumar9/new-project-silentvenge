@@ -300,6 +300,10 @@ class CodexViewModel(application: Application) : AndroidViewModel(application) {
         voiceManager.stopListening()
     }
 
+    fun resetVoiceState() {
+        voiceManager.resetState()
+    }
+
     private fun processVoicePrompt(voiceText: String) {
         viewModelScope.launch {
             generateCode(voiceText, autoRunAfter = _isAutoExecuteOnVoice.value)

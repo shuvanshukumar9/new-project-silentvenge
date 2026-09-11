@@ -10,6 +10,9 @@
         <package android:name="com.termux" />
         <package android:name="com.termux.api" />
         <package android:name="com.offsec.nethunter" />
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
     </queries>
 
     <application
